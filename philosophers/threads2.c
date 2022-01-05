@@ -1,5 +1,7 @@
+#include "libft/libft.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/time.h>
@@ -14,6 +16,14 @@ typedef struct s_philo {
 	int 			who_am_i;
 } t_philo;
 
+uint64_t    get_time(void)
+{
+	static struct timeval	tv;
+
+	gettimeofday(&tv, NULL);
+	return ((tv.tv_sec * (uint64_t)1000) + (tv.tv_usec / 1000));
+}
+
 /**
  * meditate() - this function is a reimplementation of the usleep function
  * @time_to_meditate: time in microseconds the function should pause execution for
@@ -21,15 +31,31 @@ typedef struct s_philo {
  */
 void	meditate(int time_to_meditate)
 {
-	struct timeval	current_time;
-	long int		meditate_start;
+    uint64_t        current_time;
+	uint64_t		meditate_start;
 	
-	gettimeofday(&current_time, NULL);
-	meditate_start = current_time.tv_sec;
-	while (current_time.tv_sec < meditate_start + time_to_meditate)
-	{
+    current_time = get_time();
+	meditate_start = current_time.tv_usec;
+	while (current_time.tv_usec < meditate_start + time_to_meditate)
+    {
 		gettimeofday(&current_time, NULL);
+    }
+}
+
+int	bury_philosophers(int nb_of_philos, t_philo **st_philo, pthread_t *thread)
+{
+	int			i = 0;
+
+	while (i < nb_of_philos)
+	{
+		if (pthread_join(thread[i], NULL))
+		{
+			printf("error during thread joining\n");
+			return (1);
+		}
+		i++;
 	}
+	return (0);
 }
 
 void*	routine(void *s)
@@ -38,20 +64,27 @@ void*	routine(void *s)
 
 	st_philo = *(t_philo*)(s);
 	if (st_philo.who_am_i == 0)
-		meditate(1);
+		meditate(10000);
 	while (42)
 	{
-		/* printf("Philo %d is sleeping\n", st_philo.who_am_i); */
-		meditate(1);	
 		pthread_mutex_lock(st_philo.r_fork);
 		pthread_mutex_lock(st_philo.l_fork);
-		printf("Philo %d is eating\n", st_philo.who_am_i);
-		meditate(1);	
+
+        /* write(1, "eating ", 7); */
+        write(1, ft_itoa(st_philo.who_am_i), 1);
+        /* write(1, "\n", 1); */
+
+
+		meditate(10000);	
 		pthread_mutex_unlock(st_philo.r_fork);
+        write(1, ft_itoa(st_philo.who_am_i), 1);
 		pthread_mutex_unlock(st_philo.l_fork);
-		write(1, "Philo dropped the forks\n", 24);
-		/* printf("Philo %d is thinking\n", st_philo.who_am_i); */
-		meditate(1);	
+
+        /* write(1, "done ", 5); */
+        /* write(1, ft_itoa(st_philo.who_am_i), 1); */
+        /* write(1, "\n", 1); */
+
+		meditate(10000);	
 	}
 
 	return (NULL);
@@ -86,25 +119,10 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 		}
 		i++;
 	}
-	bury_philosophers()
+	bury_philosophers(2, st_philo, thread);
 	return (0);
 }
 
-int	bury_philosophers(int nb_of_philos, t_philo **st_philo, pthread_t *thread)
-{
-	int			i = 0;
-
-	while (i < nb_of_philos)
-	{
-		if (pthread_join(thread[i], NULL))
-		{
-			printf("error during thread joining\n");
-			return (1);
-		}
-		i++;
-	}
-	return (0);
-}
 
 int main(int argc, char **argv)
 {
