@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
+
 typedef struct s_philo {
 	pthread_mutex_t *r_fork;
 	pthread_mutex_t *l_fork;
@@ -58,12 +59,15 @@ int	bury_philosophers(int nb_of_philos, t_philo **st_philo, pthread_t *thread)
 void*	routine(void *s)
 {
 	t_philo *st_philo;
+	int i;
 
 	st_philo = (t_philo*)(s);
 	while (42)
 	{
-		pthread_mutex_lock(st_philo->r_fork);
-		pthread_mutex_lock(st_philo->l_fork);
+		i = pthread_mutex_lock(st_philo->r_fork);
+		/* printf("this is I for right fork: %d\n", i); */
+		i = pthread_mutex_lock(st_philo->l_fork);
+		/* printf("this is I for left fork: %d\n", i); */
 
         write(1, "eating ", 7);
         write(1, ft_itoa(st_philo->who_am_i), 1);
@@ -71,14 +75,8 @@ void*	routine(void *s)
 
 
 		meditate(100);	
-		/* pthread_mutex_unlock(st_philo->r_fork); */
-
-
-		/* pthread_mutex_unlock(st_philo->l_fork); */
-
-        /* write(1, "droped ", 7); */
-        /* write(1, ft_itoa(st_philo->who_am_i), 1); */
-        /* write(1, "\n", 1); */
+		i = pthread_mutex_unlock(st_philo->l_fork);
+		i = pthread_mutex_unlock(st_philo->r_fork);
 
 		meditate(100);	
 	}
@@ -86,14 +84,6 @@ void*	routine(void *s)
 	return (NULL);
 }
 
-/**
- * birth_philosophers() - this function should create a thread per philosopher
- * @nb_of_philos: the number of philosophers to be created
- * @argv: contains the arguments needed to fill in the philosophers information
- *
- * 
- * Returns int: return a nonzero value if an error occured
- */
 int	birth_philosophers(int nb_of_philos, char **argv)
 {
 	pthread_t	*thread;
@@ -109,22 +99,20 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 	pthread_mutex_init(st_philo[nb_of_philos - 1].l_fork, NULL);
 	st_philo[0].r_fork = st_philo[nb_of_philos - 1].l_fork;
 
-
-
 	while (i < nb_of_philos)
 	{
-		if (i)
+		if (i != 0)
 			st_philo[i].r_fork = st_philo[i - 1].l_fork;
 		if (i != nb_of_philos - 1)
 		{
 			st_philo[i].l_fork = malloc(sizeof(pthread_mutex_t));
 			pthread_mutex_init(st_philo[i].l_fork, NULL);
 		}
+
 		st_philo[i].who_am_i = i;
 		i++;
 	}
 	i = 0;
-
 	while (i < nb_of_philos)
 	{
 		meditate(1000);
@@ -133,16 +121,39 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 			printf("error during thread cretion\n");
 			return (1);
 		}
-		pthread_mutex_destroy(st_philo[i].l_fork);
 		i++;
 	}
 	bury_philosophers(nb_of_philos, &st_philo, thread);
+	i = 0;
+	while ( i < nb_of_philos)
+		pthread_mutex_destroy(st_philo[i++].l_fork);
 	return (0);
 }
 
+void testfunc(pthread_mutex_t *r_fork)
+{
+	int i;
+	i = pthread_mutex_lock(r_fork);
+	printf("this is I for right fork: %d\n", i);
+	i = pthread_mutex_unlock(r_fork);
+	printf("this is I for right fork: %d\n", i);
+
+}
 
 int main(int argc, char **argv)
 {
-	birth_philosophers(1, argv);
+
+	pthread_mutex_t *r_fork;
+	pthread_mutex_t l_fork;
+	pthread_mutex_t *r_fork2;
+
+
+	r_fork = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(r_fork, NULL);
+	pthread_mutex_init(&l_fork, NULL);
+
+	r_fork2 = r_fork;
+	/* testfunc(r_fork2); */
+	birth_philosophers(5, argv);
 	return (0);
 }
