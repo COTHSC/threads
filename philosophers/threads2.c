@@ -10,6 +10,7 @@
 typedef struct s_philo {
 	pthread_mutex_t *r_fork;
 	pthread_mutex_t *l_fork;
+	pthread_mutex_t *pen;
 	int 			who_am_i;
 } t_philo;
 
@@ -127,7 +128,7 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 
 	while (i < nb_of_philos)
 	{
-		meditate(1000);
+		meditate(100);
 		if (pthread_create(&thread[i], NULL, &routine, &st_philo[i]))
 		{
 			printf("error during thread cretion\n");
