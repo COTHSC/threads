@@ -7,7 +7,7 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-#define die 505
+#define die 200
 #define eat 1000
 #define sleep 1000
 
@@ -46,6 +46,20 @@ void	meditate(int time_to_meditate)
     	current_time = get_time();
 }
 
+void    print_philo_status(t_philo *st_philo, uint64_t timestamp, int action)
+{
+    char *actions[5] = {"has taken a fork", "is eating", "is sleeping", "is thinking", "died"};
+
+    pthread_mutex_lock(st_philo->megaphone);
+    ft_putstr_fd(ft_itoa(timestamp), 1);
+    ft_putstr_fd(" ", 1);
+    ft_putstr_fd(ft_itoa(st_philo->who_am_i), 1);
+    ft_putstr_fd(" ", 1);
+    ft_putstr_fd(actions[action], 1);
+    ft_putstr_fd("\n", 1);
+    pthread_mutex_unlock(st_philo->megaphone);
+}
+
 int	bury_philosophers(int nb_of_philos, t_philo **st_philo, pthread_t *thread)
 {
 	int			i = 0;
@@ -67,34 +81,56 @@ void*	routine(void *s)
 	t_philo *st_philo;
 
 	st_philo = (t_philo*)(s);
+    if (st_philo->who_am_i % 2 == 0)
+    {
+        meditate(100);
+    }
 	while (42)
 	{
-		pthread_mutex_lock(st_philo->l_fork);
-		pthread_mutex_lock(st_philo->r_fork);
-		pthread_mutex_lock(st_philo->update_time_of_death);
-		st_philo->time_of_death = get_time() + die;
-		pthread_mutex_unlock(st_philo->update_time_of_death);
-
-		pthread_mutex_lock(st_philo->megaphone);
-
-        write(1, "eating ", 7);
-        write(1, ft_itoa(st_philo->who_am_i), 1);
-        write(1, "\n", 1);
-
-		pthread_mutex_unlock(st_philo->megaphone);
-
-		meditate(100);	
-
-		pthread_mutex_unlock(st_philo->r_fork);
-		pthread_mutex_unlock(st_philo->l_fork);
 		pthread_mutex_lock(st_philo->die_one_at_a_time);
 		if (*st_philo->funeral_time)
 		{
 			pthread_mutex_unlock(st_philo->die_one_at_a_time);
-			return NULL ;
+			return NULL;
 		}
 		pthread_mutex_unlock(st_philo->die_one_at_a_time);
+        if (st_philo->who_am_i % 2 == 0)
+        {
+            pthread_mutex_lock(st_philo->r_fork);
+            pthread_mutex_lock(st_philo->l_fork);
+        }
+        else
+        {
+            pthread_mutex_lock(st_philo->l_fork);
+            pthread_mutex_lock(st_philo->r_fork);
+        }
+        print_philo_status(st_philo, get_time(), 0);
+		pthread_mutex_lock(st_philo->update_time_of_death);
+		st_philo->time_of_death = get_time() + die;
+		pthread_mutex_unlock(st_philo->update_time_of_death);
 
+
+        print_philo_status(st_philo, get_time(), 1);
+		meditate(100);	
+        if (st_philo->who_am_i % 2 == 0)
+        {
+            pthread_mutex_unlock(st_philo->l_fork);
+            pthread_mutex_unlock(st_philo->r_fork);
+        }
+        else
+        {
+            pthread_mutex_unlock(st_philo->r_fork);
+            pthread_mutex_unlock(st_philo->l_fork);
+        }
+		pthread_mutex_lock(st_philo->die_one_at_a_time);
+
+		if (*st_philo->funeral_time)
+		{
+			pthread_mutex_unlock(st_philo->die_one_at_a_time);
+			return NULL;
+		}
+		pthread_mutex_unlock(st_philo->die_one_at_a_time);
+        print_philo_status(st_philo, get_time(), 3);
 		meditate(100);	
 	}
 
@@ -116,7 +152,8 @@ int	grim_reaper(t_philo *st_philo, int nb_of_philos)
 				pthread_mutex_lock(st_philo[i].die_one_at_a_time);
 				*st_philo[0].funeral_time = 1;
 				pthread_mutex_unlock(st_philo[i].die_one_at_a_time);
-				printf("death comes to us all\n");
+                print_philo_status(st_philo, get_time(), 4);
+                pthread_mutex_unlock(st_philo[i].update_time_of_death);
 				return(0);
 			}
 			pthread_mutex_unlock(st_philo[i].update_time_of_death);
@@ -167,7 +204,7 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 	i = 0;
 	while (i < nb_of_philos)
 	{
-		meditate(5);
+		meditate(10);
 		if (pthread_create(&thread[i], NULL, &routine, &st_philo[i]))
 		{
 			printf("error during thread cretion\n");
