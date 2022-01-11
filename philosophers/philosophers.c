@@ -7,13 +7,14 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-#define die 605
+#define die 601
 #define eat 200
 #define sleep 200
 
 typedef struct s_philo {
 	pthread_mutex_t *r_fork;
 	pthread_mutex_t *l_fork;
+	pthread_mutex_t *imma_eat;
 	pthread_mutex_t *megaphone;
 	pthread_mutex_t *update_time_of_death;
 	pthread_mutex_t *die_one_at_a_time;
@@ -88,7 +89,7 @@ void    print_philo_status(t_philo *st_philo, uint64_t timestamp, int action)
 	pthread_mutex_unlock(st_philo->megaphone);
 }
 
-int	bury_philosophers(int nb_of_philos, t_philo **st_philo, pthread_t *thread)
+int	bury_philosophers(int nb_of_philos, pthread_t *thread)
 {
 	int			i = 0;
 
@@ -114,22 +115,24 @@ void*	routine(void *s)
 	if (st_philo->who_am_i % 2 != 0)
 		usleep(900);
 	/* if (!st_philo->who_am_i) */
-	/* 	meditate(1); */
+	/* 	usleep(300); */
 	while (42)
 	{
 		print_philo_status(st_philo, get_time(), 3);
-		if (st_philo->who_am_i % 2 == 0)
-		{
+		/* if (st_philo->who_am_i % 2 == 0) */
+		/* { */
+			pthread_mutex_lock(st_philo->imma_eat);
 			pthread_mutex_lock(st_philo->r_fork);
 			print_philo_status(st_philo, get_time(), 0);
 			pthread_mutex_lock(st_philo->l_fork);
-		}
-		else
-		{
-			pthread_mutex_lock(st_philo->l_fork);
-			print_philo_status(st_philo, get_time(), 0);
-			pthread_mutex_lock(st_philo->r_fork);
-		}
+			pthread_mutex_unlock(st_philo->imma_eat);
+		/* } */
+		/* else */
+		/* { */
+		/* 	pthread_mutex_lock(st_philo->l_fork); */
+		/* 	print_philo_status(st_philo, get_time(), 0); */
+		/* 	pthread_mutex_lock(st_philo->r_fork); */
+		/* } */
 		print_philo_status(st_philo, get_time(), 0);
 		if (check_death(st_philo))
 		{
@@ -180,7 +183,7 @@ int	grim_reaper(t_philo *st_philo, int nb_of_philos, pthread_t *thread)
 				pthread_mutex_lock(st_philo[i].die_one_at_a_time);
 				*st_philo[0].funeral_time = 1;
 				pthread_mutex_unlock(st_philo[i].die_one_at_a_time);
-				bury_philosophers(nb_of_philos, &st_philo, thread);
+				bury_philosophers(nb_of_philos, thread);
 				return (0);
 			}
 			pthread_mutex_unlock(st_philo[i].update_time_of_death);
@@ -209,6 +212,12 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 	st_philo[0].funeral_time = malloc(sizeof(int));
 	*st_philo[0].funeral_time = 0;	
 
+	pthread_mutex_t *tmp;
+	tmp = malloc(sizeof(pthread_mutex_t));
+
+	st_philo[0].imma_eat = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(st_philo[0].imma_eat, NULL);
+	
 	while (i < nb_of_philos)
 	{
 		st_philo[i].time_of_death = get_time() + die;
@@ -218,11 +227,18 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 			st_philo[i].r_fork = st_philo[i - 1].l_fork;
 			st_philo[i].funeral_time = st_philo[0].funeral_time;
 			st_philo[i].die_one_at_a_time = st_philo[0].die_one_at_a_time;
+			st_philo[i].imma_eat = st_philo[0].imma_eat; 
 		}
 		if (i != nb_of_philos - 1)
 		{
 			st_philo[i].l_fork = malloc(sizeof(pthread_mutex_t));
 			pthread_mutex_init(st_philo[i].l_fork, NULL);
+		}
+		if (i % 2 == 0)
+		{
+			tmp = st_philo[i].l_fork;
+			st_philo[i].l_fork = st_philo[i].r_fork;
+			st_philo[i].r_fork = tmp;
 		}
 		st_philo[i].update_time_of_death = malloc(sizeof(pthread_mutex_t));
 		pthread_mutex_init(st_philo[i].update_time_of_death, NULL);
