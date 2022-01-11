@@ -7,14 +7,13 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-#define die 601
-#define eat 200
+#define die 605
+#define eatvar 200
 #define sleep 200
 
 typedef struct s_philo {
 	pthread_mutex_t *r_fork;
 	pthread_mutex_t *l_fork;
-	pthread_mutex_t *imma_eat;
 	pthread_mutex_t *megaphone;
 	pthread_mutex_t *update_time_of_death;
 	pthread_mutex_t *die_one_at_a_time;
@@ -93,7 +92,6 @@ int	bury_philosophers(int nb_of_philos, pthread_t *thread)
 {
 	int			i = 0;
 
-	/* pthread_mutex_unlock(st_philo[0]->megaphone); */
 	while (i < nb_of_philos)
 	{
 		if (pthread_join(thread[i], NULL))
@@ -106,56 +104,53 @@ int	bury_philosophers(int nb_of_philos, pthread_t *thread)
 	return (0);
 }
 
+void	take_forks(t_philo *st_philo)
+{
+		pthread_mutex_lock(st_philo->l_fork);
+		pthread_mutex_lock(st_philo->r_fork);
+		print_philo_status(st_philo, get_time(), 0);
+}
+
+void	drop_forks(t_philo *st_philo)
+{
+		pthread_mutex_unlock(st_philo->l_fork);
+		pthread_mutex_unlock(st_philo->r_fork);
+		print_philo_status(st_philo, get_time(), 0);
+}
+
+int	eat(t_philo *st_philo)
+{
+	uint64_t	timestamp;
+	
+	take_forks(st_philo);
+	if (check_death(st_philo))
+	{
+		pthread_mutex_unlock(st_philo->r_fork);
+		pthread_mutex_unlock(st_philo->l_fork);
+		return (1);
+	}
+	timestamp = get_time();
+	pthread_mutex_lock(st_philo->update_time_of_death);
+	st_philo->time_of_death = timestamp + die;
+	pthread_mutex_unlock(st_philo->update_time_of_death);
+	print_philo_status(st_philo, timestamp, 1);
+	meditate(eatvar);
+	drop_forks(st_philo);
+	return (0);
+}
+
 void*	routine(void *s)
 {
 	t_philo *st_philo;
-	uint64_t	timestamp;
 
 	st_philo = (t_philo*)(s);
-	if (st_philo->who_am_i % 2 != 0)
+	if (st_philo->who_am_i % 2 == 0)
 		usleep(900);
-	/* if (!st_philo->who_am_i) */
-	/* 	usleep(300); */
 	while (42)
 	{
 		print_philo_status(st_philo, get_time(), 3);
-		/* if (st_philo->who_am_i % 2 == 0) */
-		/* { */
-			pthread_mutex_lock(st_philo->imma_eat);
-			pthread_mutex_lock(st_philo->r_fork);
-			print_philo_status(st_philo, get_time(), 0);
-			pthread_mutex_lock(st_philo->l_fork);
-			pthread_mutex_unlock(st_philo->imma_eat);
-		/* } */
-		/* else */
-		/* { */
-		/* 	pthread_mutex_lock(st_philo->l_fork); */
-		/* 	print_philo_status(st_philo, get_time(), 0); */
-		/* 	pthread_mutex_lock(st_philo->r_fork); */
-		/* } */
-		print_philo_status(st_philo, get_time(), 0);
-		if (check_death(st_philo))
-		{
-			pthread_mutex_unlock(st_philo->r_fork);
-			pthread_mutex_unlock(st_philo->l_fork);
-			return NULL;
-		}
-		timestamp = get_time();
-		pthread_mutex_lock(st_philo->update_time_of_death);
-		st_philo->time_of_death = timestamp + die;
-		pthread_mutex_unlock(st_philo->update_time_of_death);
-		print_philo_status(st_philo, timestamp, 1);
-		meditate(eat);
-		/* if (st_philo->who_am_i % 2 == 0) */
-		/* { */
-			pthread_mutex_unlock(st_philo->l_fork);
-			pthread_mutex_unlock(st_philo->r_fork);
-		/* } */
-		/* else */
-		/* { */
-		/* 	pthread_mutex_unlock(st_philo->r_fork); */
-		/* 	pthread_mutex_unlock(st_philo->l_fork); */
-		/* } */
+		if(eat(st_philo) != 0)
+			return (NULL);
 		print_philo_status(st_philo, get_time(), 2);
 		meditate(sleep);
 	}
@@ -189,36 +184,34 @@ int	grim_reaper(t_philo *st_philo, int nb_of_philos, pthread_t *thread)
 			pthread_mutex_unlock(st_philo[i].update_time_of_death);
 			i++;
 		}
+		usleep(10);
 	}
 	return (0);
 }
 
-int	birth_philosophers(int nb_of_philos, char **argv)
+int	alloc_philos_and_threads(t_philo *st_philo, pthread_t *threads, int nb_of_philos)
 {
-	pthread_t	*thread;
-	t_philo		*st_philo;
-	int			i = 0;
-
-	(void)argv;
-	thread = malloc(sizeof(pthread_t) * nb_of_philos + 1);
+	threads = ft_calloc(sizeof(pthread_t), nb_of_philos + 1);
 	st_philo = ft_calloc(sizeof(t_philo), nb_of_philos + 1);
-	st_philo[nb_of_philos - 1].l_fork = malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(st_philo[nb_of_philos - 1].l_fork, NULL);
-	st_philo[0].r_fork = st_philo[nb_of_philos - 1].l_fork;
-	st_philo[0].megaphone = malloc(sizeof(pthread_mutex_t));
+	return (0);
+}
+
+void	init_first_philo(t_philo *st_philo)
+{
+	st_philo->megaphone = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(st_philo[0].megaphone, NULL);
-	st_philo[0].die_one_at_a_time = malloc(sizeof(pthread_mutex_t));
+	st_philo->die_one_at_a_time = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(st_philo[0].die_one_at_a_time, NULL);
-	st_philo[0].funeral_time = malloc(sizeof(int));
-	*st_philo[0].funeral_time = 0;	
+	st_philo->funeral_time = malloc(sizeof(int));
+	*st_philo->funeral_time = 0;	
+}
 
-	pthread_mutex_t *tmp;
-	tmp = malloc(sizeof(pthread_mutex_t));
+void	init_philos(t_philo *st_philo, int nb_of_philos)
+{
+	int i;
 
-	st_philo[0].imma_eat = malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(st_philo[0].imma_eat, NULL);
-	
-	while (i < nb_of_philos)
+	i = -1;
+	while (++i < nb_of_philos)
 	{
 		st_philo[i].time_of_death = get_time() + die;
 		if (i != 0)
@@ -227,35 +220,44 @@ int	birth_philosophers(int nb_of_philos, char **argv)
 			st_philo[i].r_fork = st_philo[i - 1].l_fork;
 			st_philo[i].funeral_time = st_philo[0].funeral_time;
 			st_philo[i].die_one_at_a_time = st_philo[0].die_one_at_a_time;
-			st_philo[i].imma_eat = st_philo[0].imma_eat; 
 		}
 		if (i != nb_of_philos - 1)
 		{
 			st_philo[i].l_fork = malloc(sizeof(pthread_mutex_t));
 			pthread_mutex_init(st_philo[i].l_fork, NULL);
 		}
-		if (i % 2 == 0)
-		{
-			tmp = st_philo[i].l_fork;
-			st_philo[i].l_fork = st_philo[i].r_fork;
-			st_philo[i].r_fork = tmp;
-		}
 		st_philo[i].update_time_of_death = malloc(sizeof(pthread_mutex_t));
 		pthread_mutex_init(st_philo[i].update_time_of_death, NULL);
-		st_philo[i].who_am_i = i;
-		i++;
+		st_philo[i].who_am_i = i + 1;
 	}
-	i = 0;
+}
+
+int	birth_philosophers(int nb_of_philos, char **argv)
+{
+	pthread_t	*threads;
+	t_philo		*st_philo;
+	int			i = 0;
+
+	(void)argv;
+
+	threads = ft_calloc(sizeof(pthread_t), nb_of_philos + 1);
+	st_philo = ft_calloc(sizeof(t_philo), nb_of_philos + 1);
+	st_philo[nb_of_philos - 1].l_fork = ft_calloc(sizeof(pthread_mutex_t), 1);
+	pthread_mutex_init(st_philo[nb_of_philos - 1].l_fork, NULL);
+
+	init_first_philo(&st_philo[0]);
+	init_philos(st_philo, nb_of_philos);
+	st_philo[0].r_fork = st_philo[nb_of_philos - 1].l_fork;
 	while (i < nb_of_philos)
 	{
-		if (pthread_create(&thread[i], NULL, &routine, &st_philo[i]))
+		if (pthread_create(&threads[i], NULL, &routine, &st_philo[i]))
 		{
 			printf("error during thread cretion\n");
 			return (1);
 		}
 		i++;
 	}
-	grim_reaper(st_philo, nb_of_philos, thread);
+	grim_reaper(st_philo, nb_of_philos, threads);
 	i = 0;
 	while (i < nb_of_philos)
 		pthread_mutex_destroy(st_philo[i++].l_fork);
@@ -267,7 +269,6 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-
-	birth_philosophers(3, argv);
+	birth_philosophers(50, argv);
 	return (0);
 }
